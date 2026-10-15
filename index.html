@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<meta name="description" content="Prototipe simulasi visual mesin kepang tali 16, 24, 32, dan 48 bobin.">
+<title>Simulasi Mesin Kepang Tali</title>
+<link rel="manifest" href="manifest.json">
+<style>
+:root{color-scheme:dark;--bg:#101827;--panel:#1e293b;--text:#f1f5f9;--muted:#cbd5e1;--blue:#0284c7}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif}
+header{text-align:center;padding:20px 12px 10px}
+h1{font-size:clamp(1.2rem,4vw,1.8rem);margin:0 0 6px}
+header p{color:var(--muted);margin:0;font-size:.9rem}
+main{max-width:1100px;margin:auto;padding:12px;display:grid;gap:12px}
+.panel{background:var(--panel);border:1px solid #334155;border-radius:14px;padding:14px}
+.controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:6px}
+select,input,button{font:inherit;width:100%;border:1px solid #475569;border-radius:9px;padding:11px;background:#0f172a;color:var(--text)}
+input[type=range]{padding:9px 0;accent-color:#38bdf8}
+.buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+button{background:var(--blue);border:0;font-weight:700;cursor:pointer}
+button.secondary{background:#475569}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid #38bdf8;outline-offset:2px}
+canvas{display:block;width:100%;height:auto;background:#0b1220;border-radius:9px}
+.status{font-size:.9rem;color:#bae6fd;margin:10px 0 0}
+.note{font-size:.82rem;line-height:1.55;color:var(--muted)}
+@media(min-width:800px){main{grid-template-columns:300px 1fr;align-items:start}.visual{grid-column:2;grid-row:1 / span 2}.settings{grid-column:1}.accuracy{grid-column:1}}
+@media(max-width:420px){.panel{padding:11px}.buttons{gap:5px}button{padding:10px 4px;font-size:.88rem}}
+</style>
+</head>
+<body>
+<header>
+<h1>Simulasi Mesin Kepang Tali</h1>
+<p>Prototipe visual • empat pilihan jumlah bobin</p>
+</header>
+<main>
+<section class="panel settings">
+<h2 style="font-size:1rem;margin:0 0 12px">Pengaturan mesin</h2>
+<div class="controls">
+<div><label for="count">Jumlah bobin</label><select id="count"><option value="16">16 bobin</option><option value="24">24 bobin</option><option value="32">32 bobin</option><option value="48">48 bobin</option></select></div>
+<div><label for="speed">Kecepatan: <span id="speedValue">30%</span></label><input id="speed" type="range" min="1" max="100" value="30"></div>
+<div><label for="threads">Benang</label><select id="threads"><option value="yes">Tampilkan</option><option value="no">Sembunyikan</option></select></div>
+<div><label for="labels">Nomor bobin</label><select id="labels"><option value="yes">Tampilkan</option><option value="no">Sembunyikan</option></select></div>
+</div>
+<div class="buttons"><button id="start">Mulai</button><button id="pause" class="secondary">Jeda</button><button id="reset" class="secondary">Reset</button></div>
+<p class="status" id="status" aria-live="polite">Status: berjalan</p>
+</section>
+<section class="panel visual">
+<canvas id="machine" width="900" height="560" aria-label="Animasi konseptual mesin kepang dari samping"></canvas>
+<p class="note">Tampilan ini merupakan konsep animasi, bukan gambar teknik yang telah diverifikasi. Lintasan carrier mesin asli harus dicocokkan dengan foto/video jalur penggerak sebelum dianggap akurat.</p>
+</section>
+<section class="panel accuracy">
+<h2 style="font-size:1rem;margin:0 0 8px">Status prototipe</h2>
+<p id="info" class="note">Mesin terpilih: 16 bobin.</p>
+<p class="note">Tahap awal berfokus pada antarmuka dan gerakan visual. Kita akan menyempurnakan jalur sesuai mekanisme mesin KBL setelah referensi jalur bobin tersedia.</p>
+</section>
+</main>
+<script>
+(() => {
+const canvas=document.getElementById('machine'),ctx=canvas.getContext('2d');
+const countEl=document.getElementById('count'),speedEl=document.getElementById('speed');
+const threadEl=document.getElementById('threads'),labelsEl=document.getElementById('labels');
+const statusEl=document.getElementById('status'),infoEl=document.getElementById('info');
+const speedValue=document.getElementById('speedValue');
+const colors=['#38bdf8','#fb7185','#facc15','#4ade80','#c084fc','#fb923c','#2dd4bf','#f472b6'];
+let phase=0,running=true,last=0;
+function point(t,lane){
+ return {x:450+300*Math.sin(t),y:275+125*Math.sin(2*t+lane*Math.PI)};
+}
+function roundedRect(c,x,y,w,h,r){
+ c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();
+}
+function draw(){
+ const n=Number(countEl.value),showThreads=threadEl.value==='yes',showLabels=labelsEl.value==='yes';
+ ctx.clearRect(0,0,900,560);ctx.fillStyle='#0b1220';ctx.fillRect(0,0,900,560);
+ ctx.strokeStyle='#64748b';ctx.lineWidth=5;roundedRect(ctx,55,110,790,335,18);ctx.stroke();
+ ctx.fillStyle='#e2e8f0';ctx.textAlign='center';ctx.font='bold 21px system-ui';ctx.fillText('MESIN KEPANG '+n+' BOBIN',450,52);
+ ctx.fillStyle='#94a3b8';ctx.font='14px system-ui';ctx.fillText('Tampilan samping — lintasan konseptual',450,78);
+ // Guide tracks: schematic only, not a verified KBL carrier track.
+ for(let lane=0;lane<2;lane++){
+  ctx.beginPath();
+  for(let j=0;j<=360;j++){const p=point(j/360*Math.PI*2,lane);if(j===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}
+  ctx.strokeStyle=lane===0?'#475569':'#334155';ctx.lineWidth=lane===0?3:2;ctx.setLineDash(lane===0?[]:[7,7]);ctx.stroke();ctx.setLineDash([]);
+ }
+ // bobbins and thread paths
+ for(let i=0;i<n;i++){
+  const t=Math.PI*2*i/n+phase,p=point(t,i%2);
+  if(showThreads){
+   ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.quadraticCurveTo(450,290,450,480);
+   ctx.strokeStyle=colors[i%colors.length];ctx.globalAlpha=.36;ctx.lineWidth=1.5;ctx.stroke();ctx.globalAlpha=1;
+  }
+  ctx.beginPath();ctx.arc(p.x,p.y,Math.max(7,Math.min(12,170/n+7)),0,Math.PI*2);
+  ctx.fillStyle='#111827';ctx.fill();ctx.strokeStyle=colors[i%colors.length];ctx.lineWidth=3;ctx.stroke();
+  if(showLabels){ctx.fillStyle='#fff';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText(String(i+1),p.x,p.y+3);}
+ }
+ if(showThreads){
+  ctx.beginPath();ctx.moveTo(450,290);ctx.bezierCurveTo(432,350,468,400,450,485);
+  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=5;ctx.stroke();
+ }
+ // side-view frame support and output strand
+ ctx.strokeStyle='#64748b';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(100,430);ctx.lineTo(800,430);ctx.stroke();
+ ctx.fillStyle='#cbd5e1';ctx.font='13px system-ui';ctx.fillText('Keluaran tali (skematis)',450,525);
+ ctx.fillStyle='#1e293b';ctx.strokeStyle='#94a3b8';ctx.lineWidth=2;roundedRect(ctx,720,455,90,48,8);ctx.fill();ctx.stroke();
+ ctx.fillStyle='#e2e8f0';ctx.font='12px system-ui';ctx.fillText('MOTOR',765,484);
+ infoEl.textContent='Mesin terpilih: '+n+' bobin. Kecepatan animasi: '+speedEl.value+'%.';
+}
+function animate(ts){
+ if(!last)last=ts;const dt=Math.min(50,ts-last);last=ts;
+ if(running){phase+=dt/1000*(Number(speedEl.value)/100)*1.3;if(phase>Math.PI*2)phase-=Math.PI*2;draw();}
+ requestAnimationFrame(animate);
+}
+countEl.addEventListener('change',draw);
+speedEl.addEventListener('input',()=>{speedValue.textContent=speedEl.value+'%';draw();});
+threadEl.addEventListener('change',draw);labelsEl.addEventListener('change',draw);
+document.getElementById('start').addEventListener('click',()=>{running=true;statusEl.textContent='Status: berjalan';});
+document.getElementById('pause').addEventListener('click',()=>{running=false;statusEl.textContent='Status: jeda';});
+document.getElementById('reset').addEventListener('click',()=>{phase=0;draw();running=false;statusEl.textContent='Status: reset — tekan Mulai untuk menjalankan';});
+draw();requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
