@@ -49,8 +49,18 @@ canvas{display:block;width:100%;height:auto;background:#0b1220;border-radius:9px
 <p class="status" id="status" aria-live="polite">Status: berjalan</p>
 </section>
 <section class="panel visual">
+<h2 style="font-size:1rem;margin:0 0 8px">1. Tata letak bobin — tampak atas</h2>
+<p class="note">Ketuk salah satu bobin bernomor untuk memilihnya, lalu pilih warna benang. Bagian tengah sengaja dibiarkan kosong.</p>
+<canvas id="layout" width="600" height="600" aria-label="Susunan bobin melingkar mengelilingi ruang kosong di tengah"></canvas>
+<div class="controls" style="margin-top:10px">
+<div><label for="selectedBobbin">Bobin terpilih</label><select id="selectedBobbin"></select></div>
+<div><label for="yarnColor">Warna benang bobin</label><input id="yarnColor" type="color" value="#e74c3c" style="height:44px;padding:4px"></div>
+</div>
+<p id="layoutStatus" class="status" aria-live="polite">Pilih bobin untuk mengatur warna.</p>
+<hr style="border-color:#334155;margin:18px 0">
+<h2 style="font-size:1rem;margin:0 0 8px">2. Animasi mesin — tampak samping</h2>
 <canvas id="machine" width="900" height="560" aria-label="Animasi konseptual mesin kepang dari samping"></canvas>
-<p class="note">Tampilan ini merupakan konsep animasi, bukan gambar teknik yang telah diverifikasi. Lintasan carrier mesin asli harus dicocokkan dengan foto/video jalur penggerak sebelum dianggap akurat.</p>
+<p class="note">Tata letak melingkar membantu mengatur posisi dan warna. Gerakan mekanis di tampak samping masih berupa skema dan belum diverifikasi terhadap mesin asli.</p>
 </section>
 <section class="panel accuracy">
 <h2 style="font-size:1rem;margin:0 0 8px">Status prototipe</h2>
@@ -61,93 +71,96 @@ canvas{display:block;width:100%;height:auto;background:#0b1220;border-radius:9px
 <script>
 (() => {
 const canvas=document.getElementById('machine'),ctx=canvas.getContext('2d');
+const layout=document.getElementById('layout'),lctx=layout.getContext('2d');
 const countEl=document.getElementById('count'),speedEl=document.getElementById('speed');
 const threadEl=document.getElementById('threads'),labelsEl=document.getElementById('labels');
 const statusEl=document.getElementById('status'),infoEl=document.getElementById('info');
-const speedValue=document.getElementById('speedValue');
-const colors=['#38bdf8','#fb7185','#facc15','#4ade80','#c084fc','#fb923c','#2dd4bf','#f472b6'];
-let phase=0,running=true,last=0;
-
-// Side-elevation schematic: two horizontal carrier lanes with end-transfer curves.
-// Deliberately NOT drawn as a large figure-eight.
+const selectedEl=document.getElementById('selectedBobbin'),colorEl=document.getElementById('yarnColor');
+const layoutStatus=document.getElementById('layoutStatus'),speedValue=document.getElementById('speedValue');
+const defaultColors=['#e74c3c','#2e86de','#f1c40f','#27ae60','#8e44ad','#e67e22','#16a085','#f06292'];
+let bobbinColors=[],phase=0,running=true,last=0,selected=1;
+function syncBobbinSettings(reset=false){
+ const n=Number(countEl.value),old=bobbinColors.slice();
+ bobbinColors=Array.from({length:n},(_,i)=>!reset&&old[i]?old[i]:defaultColors[i%defaultColors.length]);
+ selected=Math.min(selected,n);
+ selectedEl.innerHTML='';
+ for(let i=1;i<=n;i++){const o=document.createElement('option');o.value=i;o.textContent='Bobin '+i;selectedEl.appendChild(o);}
+ selectedEl.value=String(selected);colorEl.value=bobbinColors[selected-1];
+ drawLayout();draw();
+}
+function ringPosition(i,n){
+ const a=-Math.PI/2+(i/n)*Math.PI*2;
+ const r=218;
+ return {x:300+Math.cos(a)*r,y:300+Math.sin(a)*r,a};
+}
+function drawLayout(){
+ const n=Number(countEl.value);lctx.clearRect(0,0,600,600);lctx.fillStyle='#0b1220';lctx.fillRect(0,0,600,600);
+ lctx.strokeStyle='#64748b';lctx.lineWidth=3;lctx.beginPath();lctx.arc(300,300,218,0,Math.PI*2);lctx.stroke();
+ lctx.strokeStyle='#334155';lctx.lineWidth=2;lctx.beginPath();lctx.arc(300,300,174,0,Math.PI*2);lctx.stroke();
+ lctx.fillStyle='#0b1220';lctx.beginPath();lctx.arc(300,300,150,0,Math.PI*2);lctx.fill();
+ lctx.strokeStyle='#475569';lctx.setLineDash([5,6]);lctx.beginPath();lctx.arc(300,300,150,0,Math.PI*2);lctx.stroke();lctx.setLineDash([]);
+ lctx.textAlign='center';lctx.fillStyle='#cbd5e1';lctx.font='bold 20px system-ui';lctx.fillText('AREA TENGAH',300,292);
+ lctx.font='14px system-ui';lctx.fillStyle='#94a3b8';lctx.fillText('KOSONG',300,316);
+ lctx.font='13px system-ui';lctx.fillStyle='#94a3b8';lctx.fillText('TAMPAK ATAS • '+n+' BOBIN',300,28);
+ for(let i=0;i<n;i++){
+  const p=ringPosition(i,n),rad=n>=32?13:16;
+  lctx.beginPath();lctx.arc(p.x,p.y,rad+4,0,Math.PI*2);lctx.fillStyle='#111827';lctx.fill();
+  lctx.beginPath();lctx.arc(p.x,p.y,rad,0,Math.PI*2);lctx.fillStyle=bobbinColors[i];lctx.fill();
+  lctx.strokeStyle=(i+1===selected)?'#ffffff':'#94a3b8';lctx.lineWidth=(i+1===selected)?4:1.5;lctx.stroke();
+  lctx.fillStyle=(i+1===selected)?'#ffffff':'#0b1220';lctx.font=n>=32?'bold 9px system-ui':'bold 11px system-ui';lctx.textAlign='center';lctx.textBaseline='middle';lctx.fillText(String(i+1),p.x,p.y);
+ }
+ lctx.textBaseline='alphabetic';
+ layoutStatus.textContent='Bobin '+selected+' dipilih. Ketuk bobin lain pada lingkaran atau pilih nomor dari daftar.';
+}
+layout.addEventListener('click',e=>{
+ const rect=layout.getBoundingClientRect(),x=(e.clientX-rect.left)*600/rect.width,y=(e.clientY-rect.top)*600/rect.height;
+ let best=Infinity,idx=-1;
+ for(let i=0;i<Number(countEl.value);i++){const p=ringPosition(i,Number(countEl.value)),d=Math.hypot(x-p.x,y-p.y);if(d<best){best=d;idx=i;}}
+ if(best<42){selected=idx+1;selectedEl.value=String(selected);colorEl.value=bobbinColors[idx];drawLayout();}
+});
+selectedEl.addEventListener('change',()=>{selected=Number(selectedEl.value);colorEl.value=bobbinColors[selected-1];drawLayout();});
+colorEl.addEventListener('input',()=>{bobbinColors[selected-1]=colorEl.value;drawLayout();draw();});
 function trackPoint(u,lane){
- const x0=150,x1=750,top=250,bottom=330,r=42;
- const L=x1-x0,straight=2*L,arc=Math.PI*r,total=straight+2*arc;
+ const x0=150,x1=750,top=250,bottom=330,r=42,L=x1-x0,arc=Math.PI*r,total=2*L+2*arc;
  let d=((u%(Math.PI*2)+Math.PI*2)%(Math.PI*2))/(Math.PI*2)*total;
- if(d<L) return {x:x0+d,y:top+(lane===0?-9:9)};
- d-=L;
- if(d<arc){const a=-Math.PI/2+d/r;return {x:x1+r*Math.cos(a),y:290+r*Math.sin(a)+(lane===0?-7:7)};}
- d-=arc;
- if(d<L) return {x:x1-d,y:bottom+(lane===0?-9:9)};
- d-=L;
- const a=Math.PI/2+d/r;return {x:x0+r*Math.cos(a),y:290+r*Math.sin(a)+(lane===0?-7:7)};
+ if(d<L)return{x:x0+d,y:top+(lane===0?-9:9)};
+ d-=L;if(d<arc){const a=-Math.PI/2+d/r;return{x:x1+r*Math.cos(a),y:290+r*Math.sin(a)+(lane===0?-7:7)};}
+ d-=arc;if(d<L)return{x:x1-d,y:bottom+(lane===0?-9:9)};
+ d-=L;const a=Math.PI/2+d/r;return{x:x0+r*Math.cos(a),y:290+r*Math.sin(a)+(lane===0?-7:7)};
 }
-function roundedRect(c,x,y,w,h,r){
- c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();
-}
+function roundedRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
 function draw(){
  const n=Number(countEl.value),showThreads=threadEl.value==='yes',showLabels=labelsEl.value==='yes';
  ctx.clearRect(0,0,900,560);ctx.fillStyle='#0b1220';ctx.fillRect(0,0,900,560);
  ctx.fillStyle='#e2e8f0';ctx.textAlign='center';ctx.font='bold 21px system-ui';ctx.fillText('MESIN KEPANG '+n+' BOBIN',450,30);
- ctx.fillStyle='#94a3b8';ctx.font='13px system-ui';ctx.fillText('Tampak samping • dua jalur carrier memanjang',450,51);
-
- // Machine frame.
+ ctx.fillStyle='#94a3b8';ctx.font='13px system-ui';ctx.fillText('Tampak samping konseptual',450,51);
  ctx.strokeStyle='#64748b';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(105,85);ctx.lineTo(105,470);ctx.moveTo(795,85);ctx.lineTo(795,470);ctx.moveTo(105,470);ctx.lineTo(795,470);ctx.stroke();
  ctx.strokeStyle='#475569';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(150,250);ctx.lineTo(750,250);ctx.moveTo(150,330);ctx.lineTo(750,330);ctx.stroke();
-
- // Rounded end-transfer tracks: parallel lanes connected at the ends, not an 8.
- for(let lane=0;lane<2;lane++){
-  ctx.beginPath();
-  for(let j=0;j<=500;j++){const p=trackPoint(j/500*Math.PI*2,lane);if(j===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}
-  ctx.strokeStyle=lane===0?'#64748b':'#475569';ctx.lineWidth=lane===0?4:3;
-  ctx.setLineDash(lane===0?[]:[7,6]);ctx.stroke();ctx.setLineDash([]);
- }
- // Small crossover/switch marks along the lanes indicate carrier hand-offs.
- [270,390,510,630].forEach((x,k)=>{
-  ctx.strokeStyle='#64748b';ctx.lineWidth=2;ctx.beginPath();
-  ctx.moveTo(x-14,250);ctx.lineTo(x+14,330);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(x-14,330);ctx.lineTo(x+14,250);ctx.stroke();
- });
- // Take-up point above the machine head.
- ctx.strokeStyle='#94a3b8';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(450,70);ctx.lineTo(450,112);ctx.stroke();
- ctx.beginPath();ctx.ellipse(450,125,46,13,0,0,Math.PI*2);ctx.stroke();
+ for(let lane=0;lane<2;lane++){ctx.beginPath();for(let j=0;j<=500;j++){const p=trackPoint(j/500*Math.PI*2,lane);if(j===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}ctx.strokeStyle=lane===0?'#64748b':'#475569';ctx.lineWidth=lane===0?4:3;ctx.setLineDash(lane===0?[]:[7,6]);ctx.stroke();ctx.setLineDash([]);}
+ [270,390,510,630].forEach(x=>{ctx.strokeStyle='#64748b';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x-14,250);ctx.lineTo(x+14,330);ctx.moveTo(x-14,330);ctx.lineTo(x+14,250);ctx.stroke();});
+ ctx.strokeStyle='#94a3b8';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(450,70);ctx.lineTo(450,112);ctx.ellipse(450,125,46,13,0,0,Math.PI*2);ctx.stroke();
  ctx.fillStyle='#cbd5e1';ctx.font='12px system-ui';ctx.fillText('Pemandu / titik kepang',450,151);
- ctx.fillStyle='#334155';ctx.strokeStyle='#94a3b8';ctx.lineWidth=2;roundedRect(ctx,390,64,120,18,7);ctx.fill();ctx.stroke();
- ctx.fillStyle='#e2e8f0';ctx.font='11px system-ui';ctx.fillText('ROL PENARIK',450,77);
+ ctx.fillStyle='#334155';ctx.strokeStyle='#94a3b8';ctx.lineWidth=2;roundedRect(ctx,390,64,120,18,7);ctx.fill();ctx.stroke();ctx.fillStyle='#e2e8f0';ctx.font='11px system-ui';ctx.fillText('ROL PENARIK',450,77);
  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(450,128);ctx.bezierCurveTo(440,150,460,167,450,190);ctx.stroke();
- ctx.fillStyle='#94a3b8';ctx.font='12px system-ui';ctx.fillText('Tarikan tali ke atas',575,91);
-
  const half=n/2;
  for(let i=0;i<n;i++){
-  const group=i<half?0:1,slot=i%half;
-  const direction=group===0?1:-1;
-  const u=(Math.PI*2*slot/half)+(phase*direction)+(group===1?Math.PI/half:0);
-  const p=trackPoint(u,group);
-  if(showThreads){
-   ctx.beginPath();ctx.moveTo(p.x,p.y-8);
-   ctx.bezierCurveTo(p.x+(450-p.x)*.18,p.y-55,450+(p.x-450)*.06,185,450,128);
-   ctx.strokeStyle=colors[i%colors.length];ctx.globalAlpha=.4;ctx.lineWidth=1.6;ctx.stroke();ctx.globalAlpha=1;
-  }
-  ctx.beginPath();ctx.arc(p.x,p.y,Math.max(7,Math.min(12,170/n+7)),0,Math.PI*2);
-  ctx.fillStyle='#111827';ctx.fill();ctx.strokeStyle=colors[i%colors.length];ctx.lineWidth=3;ctx.stroke();
+  const group=i<half?0:1,slot=i%half,direction=group===0?1:-1;
+  const u=(Math.PI*2*slot/half)+(phase*direction)+(group===1?Math.PI/half:0),p=trackPoint(u,group),col=bobbinColors[i];
+  if(showThreads){ctx.beginPath();ctx.moveTo(p.x,p.y-8);ctx.bezierCurveTo(p.x+(450-p.x)*.18,p.y-55,450+(p.x-450)*.06,185,450,128);ctx.strokeStyle=col;ctx.globalAlpha=.42;ctx.lineWidth=1.6;ctx.stroke();ctx.globalAlpha=1;}
+  ctx.beginPath();ctx.arc(p.x,p.y,Math.max(7,Math.min(12,170/n+7)),0,Math.PI*2);ctx.fillStyle='#111827';ctx.fill();ctx.strokeStyle=col;ctx.lineWidth=3;ctx.stroke();
   if(showLabels){ctx.fillStyle='#fff';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText(String(i+1),p.x,p.y+3);}
  }
- ctx.fillStyle='#94a3b8';ctx.font='12px system-ui';ctx.fillText('Jalur atas',450,225);ctx.fillText('Jalur bawah',450,357);
- ctx.fillText('Arah grup A: →     Grup B: ←',450,410);
- infoEl.textContent='Mesin terpilih: '+n+' bobin. Kecepatan animasi: '+speedEl.value+'%. Tampak samping skematis dengan dua jalur memanjang; belum diverifikasi terhadap track mesin asli.';
+ ctx.fillStyle='#94a3b8';ctx.font='12px system-ui';ctx.fillText('Rel / carrier (skematis)',450,410);
+ infoEl.textContent='Mesin terpilih: '+n+' bobin. Kecepatan: '+speedEl.value+'%. Warna dari denah atas diterapkan pada bobin bernomor yang sama.';
 }
-function animate(ts){
- if(!last)last=ts;const dt=Math.min(50,ts-last);last=ts;
- if(running){phase+=dt/1000*(Number(speedEl.value)/100)*1.3;if(phase>Math.PI*2)phase-=Math.PI*2;draw();}
- requestAnimationFrame(animate);
-}
-countEl.addEventListener('change',draw);
+function animate(ts){if(!last)last=ts;const dt=Math.min(50,ts-last);last=ts;if(running){phase+=dt/1000*(Number(speedEl.value)/100)*1.3;if(phase>Math.PI*2)phase-=Math.PI*2;draw();}requestAnimationFrame(animate);}
+countEl.addEventListener('change',()=>syncBobbinSettings(true));
 speedEl.addEventListener('input',()=>{speedValue.textContent=speedEl.value+'%';draw();});
 threadEl.addEventListener('change',draw);labelsEl.addEventListener('change',draw);
 document.getElementById('start').addEventListener('click',()=>{running=true;statusEl.textContent='Status: berjalan';});
 document.getElementById('pause').addEventListener('click',()=>{running=false;statusEl.textContent='Status: jeda';});
 document.getElementById('reset').addEventListener('click',()=>{phase=0;draw();running=false;statusEl.textContent='Status: reset — tekan Mulai untuk menjalankan';});
-draw();requestAnimationFrame(animate);
+syncBobbinSettings(true);requestAnimationFrame(animate);
 })();
 </script>
 </body>
