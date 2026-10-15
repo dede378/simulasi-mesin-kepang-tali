@@ -81,7 +81,7 @@ const defaultColors=['#e74c3c','#2e86de','#f1c40f','#27ae60','#8e44ad','#e67e22'
 let bobbinColors=[],phase=0,running=true,last=0,selected=1;
 function syncBobbinSettings(reset=false){
  const n=Number(countEl.value),old=bobbinColors.slice();
- bobbinColors=Array.from({length:n},(_,i)=>!reset&&old[i]?old[i]:defaultColors[i%defaultColors.length]);
+ bobbinColors=Array.from({length:n},(_,i)=>!reset&&old[i]?old[i]:(i<n/2?'#e74c3c':'#27ae60'));
  selected=Math.min(selected,n);
  selectedEl.innerHTML='';
  for(let i=1;i<=n;i++){const o=document.createElement('option');o.value=i;o.textContent='Bobin '+i;selectedEl.appendChild(o);}
@@ -89,19 +89,26 @@ function syncBobbinSettings(reset=false){
  drawLayout();draw();
 }
 function ringPosition(i,n){
- const a=-Math.PI/2+(i/n)*Math.PI*2;
- const r=218;
- return {x:300+Math.cos(a)*r,y:300+Math.sin(a)*r,a};
+ // Top-view concept: two groups circulate in opposite directions.
+ // Their carriers periodically exchange inner/outer lanes; exact machine timing still needs reference validation.
+ const group=i<n/2?0:1,slot=i%(n/2),direction=group===0?1:-1;
+ const a=-Math.PI/2+(slot/(n/2))*Math.PI*2+direction*phase+(group===1?Math.PI/n:0);
+ const r=198+24*Math.sin(2*a);
+ return {x:300+Math.cos(a)*r,y:300+Math.sin(a)*r,a,r,group};
 }
 function drawLayout(){
  const n=Number(countEl.value);lctx.clearRect(0,0,600,600);lctx.fillStyle='#0b1220';lctx.fillRect(0,0,600,600);
- lctx.strokeStyle='#64748b';lctx.lineWidth=3;lctx.beginPath();lctx.arc(300,300,218,0,Math.PI*2);lctx.stroke();
- lctx.strokeStyle='#334155';lctx.lineWidth=2;lctx.beginPath();lctx.arc(300,300,174,0,Math.PI*2);lctx.stroke();
+ lctx.strokeStyle='#64748b';lctx.lineWidth=2;lctx.beginPath();lctx.arc(300,300,222,0,Math.PI*2);lctx.stroke();
+ lctx.strokeStyle='#475569';lctx.lineWidth=2;lctx.beginPath();lctx.arc(300,300,174,0,Math.PI*2);lctx.stroke();
+ // Two circular carrier lanes with a highlighted inner/outer switching pattern.
+ lctx.strokeStyle='#64748b';lctx.lineWidth=3;lctx.setLineDash([8,7]);lctx.beginPath();lctx.arc(300,300,198,0,Math.PI*2);lctx.stroke();lctx.setLineDash([]);
  lctx.fillStyle='#0b1220';lctx.beginPath();lctx.arc(300,300,150,0,Math.PI*2);lctx.fill();
  lctx.strokeStyle='#475569';lctx.setLineDash([5,6]);lctx.beginPath();lctx.arc(300,300,150,0,Math.PI*2);lctx.stroke();lctx.setLineDash([]);
- lctx.textAlign='center';lctx.fillStyle='#cbd5e1';lctx.font='bold 20px system-ui';lctx.fillText('AREA TENGAH',300,292);
+ lctx.textAlign='center';lctx.fillStyle='#cbd5e1';lctx.font='bold 18px system-ui';lctx.fillText('AREA TENGAH',300,292);
  lctx.font='14px system-ui';lctx.fillStyle='#94a3b8';lctx.fillText('KOSONG',300,316);
  lctx.font='13px system-ui';lctx.fillStyle='#94a3b8';lctx.fillText('TAMPAK ATAS • '+n+' BOBIN',300,28);
+ lctx.font='12px system-ui';lctx.fillStyle='#f87171';lctx.fillText('← Grup merah',115,300);
+ lctx.fillStyle='#4ade80';lctx.fillText('Grup hijau →',485,300);
  for(let i=0;i<n;i++){
   const p=ringPosition(i,n),rad=n>=32?13:16;
   lctx.beginPath();lctx.arc(p.x,p.y,rad+4,0,Math.PI*2);lctx.fillStyle='#111827';lctx.fill();
@@ -110,7 +117,7 @@ function drawLayout(){
   lctx.fillStyle=(i+1===selected)?'#ffffff':'#0b1220';lctx.font=n>=32?'bold 9px system-ui':'bold 11px system-ui';lctx.textAlign='center';lctx.textBaseline='middle';lctx.fillText(String(i+1),p.x,p.y);
  }
  lctx.textBaseline='alphabetic';
- layoutStatus.textContent='Bobin '+selected+' dipilih. Ketuk bobin lain pada lingkaran atau pilih nomor dari daftar.';
+ layoutStatus.textContent='Bobin '+selected+' dipilih. Dua grup bergerak berlawanan arah dan berganti jalur dalam/luar (skema konsep).';
 }
 layout.addEventListener('click',e=>{
  const rect=layout.getBoundingClientRect(),x=(e.clientX-rect.left)*600/rect.width,y=(e.clientY-rect.top)*600/rect.height;
@@ -153,7 +160,7 @@ function draw(){
  ctx.fillStyle='#94a3b8';ctx.font='12px system-ui';ctx.fillText('Rel / carrier (skematis)',450,410);
  infoEl.textContent='Mesin terpilih: '+n+' bobin. Kecepatan: '+speedEl.value+'%. Warna dari denah atas diterapkan pada bobin bernomor yang sama.';
 }
-function animate(ts){if(!last)last=ts;const dt=Math.min(50,ts-last);last=ts;if(running){phase+=dt/1000*(Number(speedEl.value)/100)*1.3;if(phase>Math.PI*2)phase-=Math.PI*2;draw();}requestAnimationFrame(animate);}
+function animate(ts){if(!last)last=ts;const dt=Math.min(50,ts-last);last=ts;if(running){phase+=dt/1000*(Number(speedEl.value)/100)*1.3;if(phase>Math.PI*2)phase-=Math.PI*2;drawLayout();draw();}requestAnimationFrame(animate);}
 countEl.addEventListener('change',()=>syncBobbinSettings(true));
 speedEl.addEventListener('input',()=>{speedValue.textContent=speedEl.value+'%';draw();});
 threadEl.addEventListener('change',draw);labelsEl.addEventListener('change',draw);
