@@ -1,0 +1,9 @@
+{
+  "name": "Simulasi Mesin Kepang Tali",
+  "short_name": "Simulasi Kepang",
+  "description": "Prototipe simulasi visual mesin kepang 16, 24, 32, dan 48 bobin",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#101827",
+  "theme_color": "#101827"
+}
