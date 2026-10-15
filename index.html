@@ -67,8 +67,9 @@ const statusEl=document.getElementById('status'),infoEl=document.getElementById(
 const speedValue=document.getElementById('speedValue');
 const colors=['#38bdf8','#fb7185','#facc15','#4ade80','#c084fc','#fb923c','#2dd4bf','#f472b6'];
 let phase=0,running=true,last=0;
-function point(t,lane){
- return {x:450+300*Math.sin(t),y:275+125*Math.sin(2*t+lane*Math.PI)};
+function trackPoint(t,lane){
+ // Two schematic carrier lanes cross at the centre, like a continuous figure-eight.
+ return {x:450+292*Math.sin(t),y:315+100*Math.sin(2*t)+(lane===0?-13:13)};
 }
 function roundedRect(c,x,y,w,h,r){
  c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();
@@ -76,36 +77,56 @@ function roundedRect(c,x,y,w,h,r){
 function draw(){
  const n=Number(countEl.value),showThreads=threadEl.value==='yes',showLabels=labelsEl.value==='yes';
  ctx.clearRect(0,0,900,560);ctx.fillStyle='#0b1220';ctx.fillRect(0,0,900,560);
- ctx.strokeStyle='#64748b';ctx.lineWidth=5;roundedRect(ctx,55,110,790,335,18);ctx.stroke();
- ctx.fillStyle='#e2e8f0';ctx.textAlign='center';ctx.font='bold 21px system-ui';ctx.fillText('MESIN KEPANG '+n+' BOBIN',450,52);
- ctx.fillStyle='#94a3b8';ctx.font='14px system-ui';ctx.fillText('Tampilan samping — lintasan konseptual',450,78);
- // Guide tracks: schematic only, not a verified KBL carrier track.
+ ctx.fillStyle='#e2e8f0';ctx.textAlign='center';ctx.font='bold 21px system-ui';ctx.fillText('MESIN KEPANG '+n+' BOBIN',450,30);
+ ctx.fillStyle='#94a3b8';ctx.font='13px system-ui';ctx.fillText('Tampak samping skematis • carrier bergerak berlawanan arah',450,51);
+
+ // Frame and side elevation of the braiding head.
+ ctx.strokeStyle='#64748b';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(105,85);ctx.lineTo(105,470);ctx.moveTo(795,85);ctx.lineTo(795,470);ctx.moveTo(105,470);ctx.lineTo(795,470);ctx.stroke();
+ ctx.strokeStyle='#475569';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(130,215);ctx.lineTo(770,215);ctx.stroke();
+
+ // Take-up/output is above the braiding point.
+ ctx.strokeStyle='#94a3b8';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(450,70);ctx.lineTo(450,112);ctx.stroke();
+ ctx.beginPath();ctx.ellipse(450,125,46,13,0,0,Math.PI*2);ctx.stroke();
+ ctx.fillStyle='#cbd5e1';ctx.font='12px system-ui';ctx.fillText('Pemandu / titik kepang',450,151);
+ ctx.strokeStyle='#e2e8f0';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(450,112);ctx.lineTo(450,73);ctx.stroke();
+ ctx.fillStyle='#94a3b8';ctx.fillText('Tarikan tali ke atas',570,91);
+
+ // Figure-eight carrier paths; two lanes are shown with slight separation for visibility.
  for(let lane=0;lane<2;lane++){
   ctx.beginPath();
-  for(let j=0;j<=360;j++){const p=point(j/360*Math.PI*2,lane);if(j===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}
-  ctx.strokeStyle=lane===0?'#475569':'#334155';ctx.lineWidth=lane===0?3:2;ctx.setLineDash(lane===0?[]:[7,7]);ctx.stroke();ctx.setLineDash([]);
+  for(let j=0;j<=500;j++){
+   const p=trackPoint(j/500*Math.PI*2,lane);
+   if(j===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);
+  }
+  ctx.strokeStyle=lane===0?'#64748b':'#475569';ctx.lineWidth=lane===0?5:3;
+  ctx.setLineDash(lane===0?[]:[8,6]);ctx.stroke();ctx.setLineDash([]);
  }
- // bobbins and thread paths
+ // Draw carriers split into two groups. Their phase directions are opposite.
+ const half=n/2;
  for(let i=0;i<n;i++){
-  const t=Math.PI*2*i/n+phase,p=point(t,i%2);
+  const group=i<half?0:1,slot=i%half;
+  const direction=group===0?1:-1;
+  const t=(Math.PI*2*slot/half)+(phase*direction)+(group===1?Math.PI/half:0);
+  const p=trackPoint(t,group);
   if(showThreads){
-   ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.quadraticCurveTo(450,290,450,480);
-   ctx.strokeStyle=colors[i%colors.length];ctx.globalAlpha=.36;ctx.lineWidth=1.5;ctx.stroke();ctx.globalAlpha=1;
+   ctx.beginPath();ctx.moveTo(p.x,p.y-8);
+   ctx.bezierCurveTo(p.x+(450-p.x)*.18,p.y-65,450+(p.x-450)*.06,185,450,128);
+   ctx.strokeStyle=colors[i%colors.length];ctx.globalAlpha=.42;ctx.lineWidth=1.6;ctx.stroke();ctx.globalAlpha=1;
   }
   ctx.beginPath();ctx.arc(p.x,p.y,Math.max(7,Math.min(12,170/n+7)),0,Math.PI*2);
   ctx.fillStyle='#111827';ctx.fill();ctx.strokeStyle=colors[i%colors.length];ctx.lineWidth=3;ctx.stroke();
   if(showLabels){ctx.fillStyle='#fff';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText(String(i+1),p.x,p.y+3);}
+  // Small direction mark makes opposite motion easier to see.
+  const ahead=trackPoint(t+direction*.12,group);
+  ctx.strokeStyle=colors[i%colors.length];ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+(ahead.x-p.x)*.55,p.y+(ahead.y-p.y)*.55);ctx.stroke();
  }
- if(showThreads){
-  ctx.beginPath();ctx.moveTo(450,290);ctx.bezierCurveTo(432,350,468,400,450,485);
-  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=5;ctx.stroke();
- }
- // side-view frame support and output strand
- ctx.strokeStyle='#64748b';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(100,430);ctx.lineTo(800,430);ctx.stroke();
- ctx.fillStyle='#cbd5e1';ctx.font='13px system-ui';ctx.fillText('Keluaran tali (skematis)',450,525);
- ctx.fillStyle='#1e293b';ctx.strokeStyle='#94a3b8';ctx.lineWidth=2;roundedRect(ctx,720,455,90,48,8);ctx.fill();ctx.stroke();
- ctx.fillStyle='#e2e8f0';ctx.font='12px system-ui';ctx.fillText('MOTOR',765,484);
- infoEl.textContent='Mesin terpilih: '+n+' bobin. Kecepatan animasi: '+speedEl.value+'%.';
+ // The central braided rope and take-up rollers.
+ ctx.strokeStyle='#e2e8f0';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(450,128);ctx.bezierCurveTo(440,150,460,167,450,190);ctx.stroke();
+ ctx.fillStyle='#334155';ctx.strokeStyle='#94a3b8';ctx.lineWidth=2;roundedRect(ctx,390,64,120,18,7);ctx.fill();ctx.stroke();
+ ctx.fillStyle='#e2e8f0';ctx.font='11px system-ui';ctx.fillText('ROL PENARIK',450,77);
+ ctx.fillStyle='#94a3b8';ctx.font='12px system-ui';ctx.fillText('Rel carrier / horngear (skematis)',450,445);
+ ctx.fillText('Arah grup A: ↻     Grup B: ↺',450,495);
+ infoEl.textContent='Mesin terpilih: '+n+' bobin. Kecepatan animasi: '+speedEl.value+'%. Dua grup carrier bergerak berlawanan arah pada lintasan angka delapan konseptual.';
 }
 function animate(ts){
  if(!last)last=ts;const dt=Math.min(50,ts-last);last=ts;
@@ -119,7 +140,7 @@ document.getElementById('start').addEventListener('click',()=>{running=true;stat
 document.getElementById('pause').addEventListener('click',()=>{running=false;statusEl.textContent='Status: jeda';});
 document.getElementById('reset').addEventListener('click',()=>{phase=0;draw();running=false;statusEl.textContent='Status: reset — tekan Mulai untuk menjalankan';});
 draw();requestAnimationFrame(animate);
-})();
+})(); 
 </script>
 </body>
 </html>
